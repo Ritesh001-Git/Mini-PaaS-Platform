@@ -10,7 +10,7 @@ services:
       - db
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx/conf.d:/etc/nginx/conf.d # Share config folder
+      - ./nginx/conf.d:/etc/nginx/conf.d
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/paas
 
@@ -27,14 +27,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   nginx:
-  image: nginx:alpine
-  container_name: mini_paas_nginx
-  ports:
-    - "80:80"
-  volumes:
-    - ./nginx:/etc/nginx/conf.d
-  depends_on:
-    - backend
+    image: nginx:alpine
+    container_name: mini_paas_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
