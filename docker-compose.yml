@@ -27,16 +27,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   nginx:
-    image: nginx:alpine
-    container_name: mini_paas_nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-    depends_on:
-      - backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+  image: nginx:alpine
+  container_name: mini_paas_nginx
+  ports:
+    - "80:80"
+  volumes:
+    - ./nginx:/etc/nginx/conf.d
+  depends_on:
+    - backend
 
 volumes:
   postgres_data:
