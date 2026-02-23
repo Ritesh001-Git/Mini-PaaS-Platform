@@ -2,17 +2,19 @@ version: "3.8"
 
 services:
   backend:
-    build: .
-    container_name: mini_paas_backend
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx/conf.d:/etc/nginx/conf.d
-    environment:
-      - DATABASE_URL=postgresql://admin:password@db:5432/paas
+  build: .
+  container_name: mini_paas_backend
+  env_file:
+    - .env
+  ports:
+    - "8000:8000"
+  depends_on:
+    - db
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./nginx/conf.d:/etc/nginx/conf.d
+  environment:
+    - DATABASE_URL=postgresql://admin:password@db:5432/paas
 
   db:
     image: postgres:14
