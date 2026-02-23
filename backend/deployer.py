@@ -2,42 +2,78 @@ import docker
 import git
 import os
 import shutil
+import subprocess
+from dotenv import load_dotenv
 
-# Initialize Docker client using the socket from docker-compose volume
+load_dotenv()
+
 client = docker.from_env()
 
-def deploy_project(repo_url, container_name, port):
-    path = f"./deployments/{container_name}"
-    nginx_config_path = f"/etc/nginx/conf.d/{container_name}.conf"
+DOCKERHUB_USERNAME = os.getenv("DOCKERHUB_USERNAME")
+DOCKERHUB_PASSWORD = os.getenv("DOCKERHUB_PASSWORD")
 
+DEPLOY_BASE = "./deployments"
+NGINX_CONF_DIR = "/etc/nginx/conf.d"
+
+def deploy_project(repo_url, container_name, port):
     try:
-        # 1. Clone the repository
+        path = os.path.join(DEPLOY_BASE, container_name)
+
+        # -----------------------
+        # 1️⃣ Clone Repository
+        # -----------------------
         if os.path.exists(path):
             shutil.rmtree(path)
+
         git.Repo.clone_from(repo_url, path)
 
-        # 2. Build the Docker image
-        # Uses the Dockerfile located in the cloned repo
-        print(f"Building image: {container_name}...")
-        image, logs = client.images.build(path=path, tag=container_name, rm=True)
+        # -----------------------
+        # 2️⃣ Build Docker Image
+        # -----------------------
+        image_tag = f"{DOCKERHUB_USERNAME}/{container_name}:latest"
 
-        # 3. Run the container
-        # Maps the host port to the container port (defaulting to 8000 based on your Dockerfile)
-        print(f"Starting container: {container_name} on port {port}...")
+        print(f"Building image {image_tag}...")
+        image, logs = client.images.build(
+            path=path,
+            tag=image_tag,
+            rm=True
+        )
+
+        # -----------------------
+        # 3️⃣ Login to Docker Hub
+        # -----------------------
+        client.login(
+            username=DOCKERHUB_USERNAME,
+            password=DOCKERHUB_PASSWORD
+        )
+
+        # -----------------------
+        # 4️⃣ Push Image
+        # -----------------------
+        print("Pushing image to Docker Hub...")
+        for line in client.images.push(image_tag, stream=True, decode=True):
+            print(line)
+
+        # -----------------------
+        # 5️⃣ Run Container
+        # -----------------------
+        print(f"Running container on port {port}...")
+
         client.containers.run(
-            container_name,
+            image_tag,
             detach=True,
             name=container_name,
             ports={'8000/tcp': port},
             restart_policy={"Name": "always"}
         )
 
-        # 4. Generate Nginx Config for Reverse Proxy
-        # This writes to the volume shared with the Nginx container
+        # -----------------------
+        # 6️⃣ Generate Nginx Config
+        # -----------------------
         nginx_conf = f"""
 server {{
     listen 80;
-    server_name {container_name}.localhost;
+    server_name {container_name}.yourdomain.com;
 
     location / {{
         proxy_pass http://host.docker.internal:{port};
@@ -46,8 +82,16 @@ server {{
     }}
 }}
 """
-        with open(nginx_config_path, "w") as f:
+
+        conf_path = os.path.join(NGINX_CONF_DIR, f"{container_name}.conf")
+
+        with open(conf_path, "w") as f:
             f.write(nginx_conf)
+
+        # -----------------------
+        # 7️⃣ Reload Nginx
+        # -----------------------
+        subprocess.run(["docker", "exec", "mini_paas_nginx", "nginx", "-s", "reload"])
 
         return True
 
