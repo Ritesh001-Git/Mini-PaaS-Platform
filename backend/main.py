@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from pydantic import BaseModel
-
+import os
 from database import get_db, engine, SessionLocal
 import models
 import deployer
@@ -134,9 +134,9 @@ async def deploy(
     ).first()
 
     if existing:
-        raise HTTPException(status_code=400, detail="Project name or port already in use")
+        raise HTTPException(status_code=400, detail="Project name or port already in use.")
 
-    new_project = models.Project(
+    project = models.Project(
         repo_url=data.repo_url,
         container_name=data.name,
         port=data.port,
@@ -144,15 +144,34 @@ async def deploy(
         user_id=current_user.id
     )
 
-    db.add(new_project)
+    db.add(project)
     db.commit()
-    db.refresh(new_project)
+    db.refresh(project)
 
-    background_tasks.add_task(run_deployment_task, new_project.id, data)
+    background_tasks.add_task(run_deployment_task, project.id, data)
 
     return {
-        "project_id": new_project.id,
+        "project_id": project.id,
         "status": "Deployment started"
+    }
+
+@app.get("/deployment-status/{project_id}")
+def deployment_status(project_id: int, db: Session = Depends(get_db)):
+
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    docker_user = os.getenv("DOCKERHUB_USERNAME")
+
+    return {
+        "status": project.status,
+        "container_name": project.container_name,
+        "port": project.port,
+        "docker_pull": f"docker pull {docker_user}/{project.container_name}:latest",
+        "docker_run": f"docker run -p {project.port}:8000 {docker_user}/{project.container_name}:latest",
+        "url": f"http://localhost:{project.port}"
     }
 
 
@@ -160,9 +179,7 @@ async def deploy(
 # Background Deployment
 # -----------------------------
 def run_deployment_task(project_id: int, data: DeployRequest):
-
     db = SessionLocal()
-
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
 
     try:
@@ -175,20 +192,20 @@ def run_deployment_task(project_id: int, data: DeployRequest):
             port=data.port
         )
 
-        if isinstance(result, dict):
-            project.status = "RUNNING"
-            project.docker_id = result.get("docker_id")
-
-        else:
+        if "error" in result:
             project.status = "FAILED"
+        else:
+            project.status = "RUNNING"
+            project.docker_id = result["docker_id"]
+
+        db.commit()
 
     except Exception as e:
-
-        print("Deployment error:", e)
-        project.status = f"ERROR: {str(e)}"
+        print(e)
+        project.status = "ERROR"
+        db.commit()
 
     finally:
-        db.commit()
         db.close()
 
 
