@@ -131,9 +131,8 @@ server {{
         # -------------------------
         # 9️⃣ Reload Nginx
         # -------------------------
-        subprocess.run(
-            ["docker", "exec", "mini_paas_nginx", "nginx", "-s", "reload"]
-        )
+        container = client.containers.get("mini_paas_nginx")
+        container.exec_run("nginx -s reload")
 
         # -------------------------
         # 🔟 Return Deployment Info
