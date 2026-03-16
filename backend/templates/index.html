@@ -12,7 +12,7 @@
             --success: #22c55e;
             --danger: #ef4444;
             --bg: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-bg: rgba(30, 41, 59, .7);
         }
 
         body {
@@ -115,8 +115,13 @@
             <button onclick="login()">Sign In</button>
             <button onclick="register()">Sign Up</button>
 
-            <button class="oauth-btn">Continue with Google</button>
-            <button class="oauth-btn">Continue with GitHub</button>
+            <button class="oauth-btn" onclick="window.location='/auth/google'">
+                Continue with Google
+            </button>
+
+            <button class="oauth-btn" onclick="window.location='/auth/github'">
+                Continue with GitHub
+            </button>
 
         </div>
 
@@ -153,7 +158,21 @@
 
     <script>
 
-        /* LOGIN STATE */
+        /* ============================
+        HANDLE OAUTH TOKEN
+        ============================ */
+
+        const params = new URLSearchParams(window.location.search)
+        const oauthToken = params.get("token")
+
+        if (oauthToken) {
+            localStorage.setItem("token", oauthToken)
+            window.location.href = "/"
+        }
+
+        /* ============================
+        LOGIN STATE
+        ============================ */
 
         const token = localStorage.getItem("token")
 
@@ -173,7 +192,9 @@
             document.getElementById("deploy-ui").style.display = "none"
         }
 
-        /* REGISTER */
+        /* ============================
+        REGISTER
+        ============================ */
 
         async function register() {
 
@@ -192,7 +213,9 @@
 
         }
 
-        /* LOGIN */
+        /* ============================
+        LOGIN
+        ============================ */
 
         async function login() {
 
@@ -216,14 +239,18 @@
 
         }
 
-        /* LOGOUT */
+        /* ============================
+        LOGOUT
+        ============================ */
 
         function logout() {
             localStorage.removeItem("token")
             location.reload()
         }
 
-        /* DEPLOY */
+        /* ============================
+        DEPLOY
+        ============================ */
 
         document.getElementById("deployForm").addEventListener("submit", async function (e) {
 
@@ -266,8 +293,9 @@
 
         })
 
-
-        /* POLLING FUNCTION */
+        /* ============================
+        POLL DEPLOYMENT STATUS
+        ============================ */
 
         async function pollDeployment(id) {
 
@@ -292,6 +320,9 @@ Pull Image
 
 Run Container
 <pre>${data.docker_run}</pre>
+
+Live URL
+<pre>${data.url}</pre>
 `
 
                 }
@@ -300,7 +331,12 @@ Run Container
 
                     clearInterval(interval)
 
-                    statusText.innerHTML = `❌ Deployment Failed`
+                    statusText.innerHTML = `
+❌ Deployment Failed
+
+Error
+<pre>${data.error || "Unknown error"}</pre>
+`
 
                 }
 
