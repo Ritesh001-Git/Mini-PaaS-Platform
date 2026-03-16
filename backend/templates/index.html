@@ -69,10 +69,6 @@
             margin-top: 10px;
         }
 
-        button:hover {
-            opacity: .9
-        }
-
         .oauth-btn {
             background: #111827;
             border: 1px solid #374151;
@@ -90,12 +86,11 @@
             display: none;
         }
 
-        .small {
-            font-size: 12px;
-            color: #94a3b8;
-            text-align: center;
-            margin-top: 10px;
-            cursor: pointer;
+        pre {
+            background: #020617;
+            padding: 10px;
+            border-radius: 8px;
+            overflow: auto;
         }
     </style>
 </head>
@@ -106,7 +101,7 @@
 
         <h1>🚀 CloudOps Mini-PaaS</h1>
 
-        <!-- AUTH UI -->
+        <!-- AUTH -->
         <div id="auth-ui">
 
             <div class="form-group">
@@ -118,7 +113,6 @@
             </div>
 
             <button onclick="login()">Sign In</button>
-
             <button onclick="register()">Sign Up</button>
 
             <button class="oauth-btn">Continue with Google</button>
@@ -126,7 +120,7 @@
 
         </div>
 
-        <!-- DEPLOY UI -->
+        <!-- DEPLOY -->
         <div id="deploy-ui">
 
             <form id="deployForm">
@@ -159,9 +153,7 @@
 
     <script>
 
-        /* --------------------------
-        CHECK LOGIN STATE
-        ---------------------------*/
+        /* LOGIN STATE */
 
         const token = localStorage.getItem("token")
 
@@ -181,9 +173,7 @@
             document.getElementById("deploy-ui").style.display = "none"
         }
 
-        /* --------------------------
-        REGISTER
-        ---------------------------*/
+        /* REGISTER */
 
         async function register() {
 
@@ -202,9 +192,7 @@
 
         }
 
-        /* --------------------------
-        LOGIN
-        ---------------------------*/
+        /* LOGIN */
 
         async function login() {
 
@@ -220,29 +208,22 @@
             const data = await res.json()
 
             if (data.access_token) {
-
                 localStorage.setItem("token", data.access_token)
-
                 showDeployUI()
-
             } else {
                 alert(data.detail || "Login failed")
             }
 
         }
 
-        /* --------------------------
-        LOGOUT
-        ---------------------------*/
+        /* LOGOUT */
 
         function logout() {
             localStorage.removeItem("token")
             location.reload()
         }
 
-        /* --------------------------
-        DEPLOY
-        ---------------------------*/
+        /* DEPLOY */
 
         document.getElementById("deployForm").addEventListener("submit", async function (e) {
 
@@ -252,7 +233,7 @@
             const statusText = document.getElementById("status-text")
 
             statusCard.style.display = "block"
-            statusText.innerText = "Deploying..."
+            statusText.innerText = "Deployment started..."
 
             const data = {
                 repo_url: document.getElementById("repo_url").value,
@@ -272,12 +253,60 @@
             const result = await res.json()
 
             if (res.ok) {
-                statusText.innerHTML = `✅ Deployment started<br>ID: ${result.project_id}`
+
+                statusText.innerHTML = `⏳ Deployment started<br>ID: ${result.project_id}`
+
+                pollDeployment(result.project_id)
+
             } else {
+
                 statusText.innerHTML = `❌ ${result.detail || "Deployment failed"}`
+
             }
 
         })
+
+
+        /* POLLING FUNCTION */
+
+        async function pollDeployment(id) {
+
+            const statusText = document.getElementById("status-text")
+
+            const interval = setInterval(async () => {
+
+                const res = await fetch(`/deployment-status/${id}`)
+                const data = await res.json()
+
+                if (data.status === "RUNNING") {
+
+                    clearInterval(interval)
+
+                    statusText.innerHTML = `
+✅ Deployment Completed
+
+<br><br>
+
+Pull Image
+<pre>${data.docker_pull}</pre>
+
+Run Container
+<pre>${data.docker_run}</pre>
+`
+
+                }
+
+                if (data.status === "FAILED") {
+
+                    clearInterval(interval)
+
+                    statusText.innerHTML = `❌ Deployment Failed`
+
+                }
+
+            }, 3000)
+
+        }
 
     </script>
 
