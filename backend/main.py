@@ -6,10 +6,17 @@ from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from pydantic import BaseModel
 import os
+
 from database import get_db, engine, SessionLocal
 import models
 import deployer
+
+# auth utilities
 from auth import hash_password, verify_password, create_token
+
+# OAuth handlers
+from oauth import github_login, github_callback, google_login, google_callback
+
 
 # -----------------------------
 # Create tables
@@ -77,6 +84,29 @@ def get_current_user(
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+# -----------------------------
+# OAuth Routes
+# -----------------------------
+@app.get("/auth/github")
+async def github_auth(request: Request):
+    return await github_login(request)
+
+
+@app.get("/auth/github/callback")
+async def github_auth_callback(request: Request, db: Session = Depends(get_db)):
+    return await github_callback(request, db)
+
+
+@app.get("/auth/google")
+async def google_auth(request: Request):
+    return await google_login(request)
+
+
+@app.get("/auth/google/callback")
+async def google_auth_callback(request: Request, db: Session = Depends(get_db)):
+    return await google_callback(request, db)
 
 
 # -----------------------------
@@ -155,6 +185,10 @@ async def deploy(
         "status": "Deployment started"
     }
 
+
+# -----------------------------
+# Deployment Status
+# -----------------------------
 @app.get("/deployment-status/{project_id}")
 def deployment_status(project_id: int, db: Session = Depends(get_db)):
 
@@ -179,6 +213,7 @@ def deployment_status(project_id: int, db: Session = Depends(get_db)):
 # Background Deployment
 # -----------------------------
 def run_deployment_task(project_id: int, data: DeployRequest):
+
     db = SessionLocal()
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
 
@@ -196,12 +231,12 @@ def run_deployment_task(project_id: int, data: DeployRequest):
             project.status = "FAILED"
         else:
             project.status = "RUNNING"
-            project.docker_id = result["docker_id"]
+            project.docker_id = result.get("docker_id")
 
         db.commit()
 
     except Exception as e:
-        print(e)
+        print("Deployment error:", e)
         project.status = "ERROR"
         db.commit()
 
