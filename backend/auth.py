@@ -1,102 +1,26 @@
+from jose import jwt
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
 import os
-from fastapi import Request, Depends
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
-from authlib.integrations.starlette_client import OAuth
 
-from database import get_db
-import models
-from auth import create_token
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecret")
+ALGORITHM = "HS256"
 
-oauth = OAuth()
-
-# -----------------------------
-# Register GitHub OAuth
-# -----------------------------
-oauth.register(
-    name="github",
-    client_id=os.getenv("GITHUB_CLIENT_ID"),
-    client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
-    access_token_url="https://github.com/login/oauth/access_token",
-    authorize_url="https://github.com/login/oauth/authorize",
-    api_base_url="https://api.github.com/",
-    client_kwargs={"scope": "user:email"},
-)
-
-# -----------------------------
-# Register Google OAuth
-# -----------------------------
-oauth.register(
-    name="google",
-    client_id=os.getenv("GOOGLE_CLIENT_ID"),
-    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-# -----------------------------
-# GitHub Login
-# -----------------------------
-async def github_login(request: Request):
-    redirect_uri = request.url_for("github_callback")
-    return await oauth.github.authorize_redirect(request, redirect_uri)
+def hash_password(password: str):
+    return pwd_context.hash(password)
 
 
-# -----------------------------
-# GitHub Callback
-# -----------------------------
-async def github_callback(request: Request, db: Session):
-
-    token = await oauth.github.authorize_access_token(request)
-    resp = await oauth.github.get("user", token=token)
-
-    github_user = resp.json()
-
-    email = github_user.get("email")
-
-    # Some GitHub accounts hide email
-    if not email:
-        email = github_user["login"] + "@github"
-
-    user = db.query(models.User).filter(models.User.email == email).first()
-
-    if not user:
-        user = models.User(email=email, password="oauth")
-        db.add(user)
-        db.commit()
-
-    jwt_token = create_token(user.email)
-
-    return RedirectResponse(f"/?token={jwt_token}")
+def verify_password(password: str, hashed: str):
+    return pwd_context.verify(password, hashed)
 
 
-# -----------------------------
-# Google Login
-# -----------------------------
-async def google_login(request: Request):
-    redirect_uri = request.url_for("google_callback")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+def create_token(email: str):
+    payload = {
+        "sub": email,
+        "exp": datetime.utcnow() + timedelta(hours=2)
+    }
 
-
-# -----------------------------
-# Google Callback
-# -----------------------------
-async def google_callback(request: Request, db: Session):
-
-    token = await oauth.google.authorize_access_token(request)
-
-    user_info = token["userinfo"]
-
-    email = user_info["email"]
-
-    user = db.query(models.User).filter(models.User.email == email).first()
-
-    if not user:
-        user = models.User(email=email, password="oauth")
-        db.add(user)
-        db.commit()
-
-    jwt_token = create_token(user.email)
-
-    return RedirectResponse(f"/?token={jwt_token}")
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
