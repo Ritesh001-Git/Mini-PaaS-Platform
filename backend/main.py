@@ -1,11 +1,12 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from pydantic import BaseModel
-import os
 
 from database import get_db, engine, SessionLocal
 import models
@@ -19,18 +20,31 @@ from oauth import github_login, github_callback, google_login, google_callback
 
 
 # -----------------------------
-# Create tables
+# FastAPI App
 # -----------------------------
-models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="CloudOps Mini-PaaS API")
 
+# Session middleware required for OAuth
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "supersecret"),
+    session_cookie="mini_paas_session",
+    same_site="lax",
+    https_only=False
+)
+
+# Templates
 templates = Jinja2Templates(directory="templates")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-SECRET_KEY = "supersecret"
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecret")
 ALGORITHM = "HS256"
+
+# -----------------------------
+# Create database tables
+# -----------------------------
+models.Base.metadata.create_all(bind=engine)
 
 
 # -----------------------------
@@ -87,7 +101,7 @@ def home(request: Request):
 
 
 # -----------------------------
-# OAuth Routes
+# GitHub OAuth
 # -----------------------------
 @app.get("/auth/github")
 async def github_auth(request: Request):
@@ -95,17 +109,26 @@ async def github_auth(request: Request):
 
 
 @app.get("/auth/github/callback")
-async def github_auth_callback(request: Request, db: Session = Depends(get_db)):
+async def github_callback_route(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     return await github_callback(request, db)
 
 
+# -----------------------------
+# Google OAuth
+# -----------------------------
 @app.get("/auth/google")
 async def google_auth(request: Request):
     return await google_login(request)
 
 
 @app.get("/auth/google/callback")
-async def google_auth_callback(request: Request, db: Session = Depends(get_db)):
+async def google_callback_route(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     return await google_callback(request, db)
 
 
@@ -139,7 +162,14 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.email == data.email).first()
 
-    if not user or not verify_password(data.password, user.password):
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # OAuth users cannot login using password
+    if user.password is None or user.password == "oauth":
+        raise HTTPException(status_code=400, detail="Use Google/GitHub login")
+
+    if not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_token(user.email)
