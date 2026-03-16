@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CloudOps Mini-PaaS</title>
+
     <style>
         :root {
             --primary: #3b82f6;
             --success: #22c55e;
+            --danger: #ef4444;
             --bg: #0f172a;
             --card-bg: rgba(30, 41, 59, 0.7);
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Segoe UI, Tahoma;
             background: radial-gradient(circle at top left, #1e293b, #0f172a);
             color: white;
             display: flex;
@@ -21,25 +24,6 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            overflow: hidden;
-        }
-
-        /* Animated Background Blobs */
-        .blob {
-            position: absolute;
-            width: 300px;
-            height: 300px;
-            background: var(--primary);
-            filter: blur(80px);
-            border-radius: 50%;
-            z-index: -1;
-            opacity: 0.2;
-            animation: move 20s infinite alternate;
-        }
-
-        @keyframes move {
-            from { transform: translate(-50%, -50%); }
-            to { transform: translate(50%, 50%); }
         }
 
         .container {
@@ -47,170 +31,256 @@
             backdrop-filter: blur(12px);
             padding: 40px;
             border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 450px;
-            transform: translateY(0);
-            transition: all 0.3s ease;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            width: 420px;
+            border: 1px solid rgba(255, 255, 255, .1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
         }
 
         h1 {
             text-align: center;
-            margin-bottom: 30px;
-            font-size: 1.8rem;
-            letter-spacing: -0.025em;
+            margin-bottom: 25px;
             background: linear-gradient(to right, #60a5fa, #22c55e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .form-group { margin-bottom: 20px; }
-
-        label { display: block; margin-bottom: 8px; font-size: 0.9rem; color: #94a3b8; }
+        .form-group {
+            margin-bottom: 15px
+        }
 
         input {
             width: 100%;
             padding: 12px;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid #334155;
             border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
             color: white;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: rgba(15, 23, 42, 0.9);
         }
 
         button {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(45deg, var(--primary), #2563eb);
-            border: none;
+            padding: 13px;
             border-radius: 8px;
+            border: none;
+            background: linear-gradient(45deg, #3b82f6, #2563eb);
             color: white;
-            font-weight: 700;
+            font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
             margin-top: 10px;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4);
+            opacity: .9
         }
 
-        button:active { transform: translateY(0); }
+        .oauth-btn {
+            background: #111827;
+            border: 1px solid #374151;
+            margin-top: 8px;
+        }
+
+        #deploy-ui {
+            display: none
+        }
 
         #status-card {
-            margin-top: 25px;
-            padding: 15px;
-            border-radius: 8px;
-            display: none;
-            background: rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+            padding: 12px;
             border-left: 4px solid var(--primary);
-            animation: slideIn 0.4s ease;
+            display: none;
         }
 
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
+        .small {
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 10px;
+            cursor: pointer;
         }
-
-        .loader {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
+
 <body>
-    <div class="blob"></div>
-    
+
     <div class="container">
-        <h1>🚀 CloudOps PaaS</h1>
 
-        <form id="deployForm">
-            <div class="form-group">
-                <label>Source Code</label>
-                <input type="text" id="repo_url" placeholder="https://github.com/user/repo" required>
-            </div>
-            <div class="form-group">
-                <label>Application Name</label>
-                <input type="text" id="name" placeholder="my-web-app" required>
-            </div>
-            <div class="form-group">
-                <label>External Port</label>
-                <input type="number" id="port" placeholder="9000" required>
-            </div>
-            <button type="submit" id="submitBtn">Launch Instance</button>
-        </form>
+        <h1>🚀 CloudOps Mini-PaaS</h1>
 
-        <div id="status-card">
-            <div id="status-text">
-                <span class="loader"></span> Deploying to AWS...
+        <!-- AUTH UI -->
+        <div id="auth-ui">
+
+            <div class="form-group">
+                <input id="email" placeholder="Email">
             </div>
+
+            <div class="form-group">
+                <input id="password" type="password" placeholder="Password">
+            </div>
+
+            <button onclick="login()">Sign In</button>
+
+            <button onclick="register()">Sign Up</button>
+
+            <button class="oauth-btn">Continue with Google</button>
+            <button class="oauth-btn">Continue with GitHub</button>
+
         </div>
+
+        <!-- DEPLOY UI -->
+        <div id="deploy-ui">
+
+            <form id="deployForm">
+
+                <div class="form-group">
+                    <input id="repo_url" placeholder="https://github.com/user/repo">
+                </div>
+
+                <div class="form-group">
+                    <input id="name" placeholder="Application Name">
+                </div>
+
+                <div class="form-group">
+                    <input id="port" type="number" placeholder="External Port">
+                </div>
+
+                <button type="submit">Launch Instance</button>
+
+            </form>
+
+            <button onclick="logout()" style="background:#ef4444;margin-top:15px">Logout</button>
+
+            <div id="status-card">
+                <div id="status-text">Deploying...</div>
+            </div>
+
+        </div>
+
     </div>
 
     <script>
-        document.getElementById("deployForm").addEventListener("submit", async function(e) {
-            e.preventDefault();
-            const btn = document.getElementById("submitBtn");
-            const statusCard = document.getElementById("status-card");
-            const statusText = document.getElementById("status-text");
 
-            // UI State Change
-            btn.disabled = true;
-            btn.innerText = "Processing...";
-            statusCard.style.display = "block";
+        /* --------------------------
+        CHECK LOGIN STATE
+        ---------------------------*/
+
+        const token = localStorage.getItem("token")
+
+        if (token) {
+            showDeployUI()
+        } else {
+            showAuthUI()
+        }
+
+        function showDeployUI() {
+            document.getElementById("auth-ui").style.display = "none"
+            document.getElementById("deploy-ui").style.display = "block"
+        }
+
+        function showAuthUI() {
+            document.getElementById("auth-ui").style.display = "block"
+            document.getElementById("deploy-ui").style.display = "none"
+        }
+
+        /* --------------------------
+        REGISTER
+        ---------------------------*/
+
+        async function register() {
+
+            const email = document.getElementById("email").value
+            const password = document.getElementById("password").value
+
+            const res = await fetch("/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            })
+
+            const data = await res.json()
+
+            alert(data.message || data.detail)
+
+        }
+
+        /* --------------------------
+        LOGIN
+        ---------------------------*/
+
+        async function login() {
+
+            const email = document.getElementById("email").value
+            const password = document.getElementById("password").value
+
+            const res = await fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            })
+
+            const data = await res.json()
+
+            if (data.access_token) {
+
+                localStorage.setItem("token", data.access_token)
+
+                showDeployUI()
+
+            } else {
+                alert(data.detail || "Login failed")
+            }
+
+        }
+
+        /* --------------------------
+        LOGOUT
+        ---------------------------*/
+
+        function logout() {
+            localStorage.removeItem("token")
+            location.reload()
+        }
+
+        /* --------------------------
+        DEPLOY
+        ---------------------------*/
+
+        document.getElementById("deployForm").addEventListener("submit", async function (e) {
+
+            e.preventDefault()
+
+            const statusCard = document.getElementById("status-card")
+            const statusText = document.getElementById("status-text")
+
+            statusCard.style.display = "block"
+            statusText.innerText = "Deploying..."
 
             const data = {
                 repo_url: document.getElementById("repo_url").value,
                 name: document.getElementById("name").value,
                 port: parseInt(document.getElementById("port").value)
-            };
-
-            try {
-                const response = await fetch("/deploy", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusCard.style.borderLeftColor = "#22c55e";
-                    statusText.innerHTML = `✅ <strong>Success!</strong> ID: ${result.project_id}<br><small>Building container in background...</small>`;
-                } else {
-                    throw new Error(result.detail || "Deployment failed");
-                }
-            } catch (err) {
-                statusCard.style.borderLeftColor = "#ef4444";
-                statusText.innerHTML = `❌ <strong>Error:</strong> ${err.message}`;
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Launch Instance";
             }
-        });
+
+            const res = await fetch("/deploy", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + localStorage.getItem("token")
+                },
+                body: JSON.stringify(data)
+            })
+
+            const result = await res.json()
+
+            if (res.ok) {
+                statusText.innerHTML = `✅ Deployment started<br>ID: ${result.project_id}`
+            } else {
+                statusText.innerHTML = `❌ ${result.detail || "Deployment failed"}`
+            }
+
+        })
+
     </script>
+
 </body>
+
 </html>
