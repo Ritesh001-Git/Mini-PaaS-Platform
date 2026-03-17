@@ -101,7 +101,8 @@ def deploy_project(repo_url, container_name, port):
             image_tag,
             detach=True,
             name=container_name,
-            ports={'8000/tcp': port},
+            # ports={'8000/tcp': port},
+            network="mini-paas-platform_default"
             restart_policy={"Name": "always"}
         )
 
@@ -111,17 +112,17 @@ def deploy_project(repo_url, container_name, port):
         # 8️⃣ Generate Nginx Config
         # -------------------------
         nginx_conf = f"""
-server {{
-    listen 80;
-    server_name {container_name}.localhost;
+        location /{container_name}/ {{
+            proxy_pass http://{container_name}:8000/;
 
-    location / {{
-        proxy_pass http://host.docker.internal:{port};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }}
-}}
-"""
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }}
+        """
 
         conf_path = os.path.join(NGINX_CONF_DIR, f"{container_name}.conf")
 
