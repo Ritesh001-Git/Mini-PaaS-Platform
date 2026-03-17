@@ -4,6 +4,7 @@ services:
   backend:
     build: .
     container_name: mini_paas_backend
+    restart: always
     env_file:
       - .env
     ports:
@@ -12,25 +13,22 @@ services:
       - db
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./nginx/conf.d:/etc/nginx/conf.d
-    environment:
-      - DATABASE_URL=postgresql://admin:password@db:5432/paas
 
   db:
     image: postgres:14
     container_name: mini_paas_db
+    restart: always
     environment:
       POSTGRES_DB: paas
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   nginx:
     image: nginx:alpine
     container_name: mini_paas_nginx
+    restart: always
     ports:
       - "80:80"
     volumes:
