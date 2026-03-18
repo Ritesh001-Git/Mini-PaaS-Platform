@@ -11,13 +11,11 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, nullable=False, index=True)
-    password = Column(String, nullable=False)
-    # provider = Column(String, default="local")
+    clerk_id = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=True, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationship → one user can have many projects
     projects = relationship("Project", back_populates="owner", cascade="all, delete")
 
 
@@ -39,7 +37,6 @@ class Project(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Link project → user
-    user_id = Column(Integer, ForeignKey("users.id"))
-
+    # Clerk user ID (string)
+    user_id = Column(String, nullable=False)   # ✅ SIMPLE
     owner = relationship("User", back_populates="projects")
