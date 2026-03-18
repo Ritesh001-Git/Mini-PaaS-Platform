@@ -2,21 +2,15 @@ import os
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from fastapi.security import OAuth2PasswordBearer
-from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
 from pydantic import BaseModel
 
 from database import get_db, engine, SessionLocal
 import models
 import deployer
 
-# auth utilities
-from auth import hash_password, verify_password, create_token
-
-# OAuth handlers
-from oauth import github_login, github_callback, google_login, google_callback
+# 👇 Clerk auth
+from auth_clerk import get_current_user
 
 
 # -----------------------------
@@ -24,22 +18,8 @@ from oauth import github_login, github_callback, google_login, google_callback
 # -----------------------------
 app = FastAPI(title="CloudOps Mini-PaaS API")
 
-# Session middleware required for OAuth
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "supersecret"),
-    session_cookie="mini_paas_session",
-    same_site="lax",
-    https_only=False
-)
-
 # Templates
 templates = Jinja2Templates(directory="templates")
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecret")
-ALGORITHM = "HS256"
 
 # -----------------------------
 # Create database tables
@@ -56,42 +36,6 @@ class DeployRequest(BaseModel):
     port: int
 
 
-class UserRegister(BaseModel):
-    email: str
-    password: str
-
-
-class UserLogin(BaseModel):
-    email: str
-    password: str
-
-
-# -----------------------------
-# Auth Helper
-# -----------------------------
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-
-        if email is None:
-            raise HTTPException(status_code=401)
-
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.query(models.User).filter(models.User.email == email).first()
-
-    if not user:
-        raise HTTPException(status_code=401)
-
-    return user
-
-
 # -----------------------------
 # Render UI
 # -----------------------------
@@ -101,93 +45,21 @@ def home(request: Request):
 
 
 # -----------------------------
-# GitHub OAuth
-# -----------------------------
-@app.get("/auth/github")
-async def github_auth(request: Request):
-    return await github_login(request)
-
-
-@app.get("/auth/github/callback")
-async def github_callback_route(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    return await github_callback(request, db)
-
-
-# -----------------------------
-# Google OAuth
-# -----------------------------
-@app.get("/auth/google")
-async def google_auth(request: Request):
-    return await google_login(request)
-
-
-@app.get("/auth/google/callback")
-async def google_callback_route(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    return await google_callback(request, db)
-
-
-# -----------------------------
-# Register
-# -----------------------------
-@app.post("/register")
-def register(data: UserRegister, db: Session = Depends(get_db)):
-
-    existing = db.query(models.User).filter(models.User.email == data.email).first()
-
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    user = models.User(
-        email=data.email,
-        password=hash_password(data.password)
-    )
-
-    db.add(user)
-    db.commit()
-
-    return {"message": "User registered successfully"}
-
-
-# -----------------------------
-# Login
-# -----------------------------
-@app.post("/login")
-def login(data: UserLogin, db: Session = Depends(get_db)):
-
-    user = db.query(models.User).filter(models.User.email == data.email).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    # OAuth users cannot login using password
-    if user.password is None or user.password == "oauth":
-        raise HTTPException(status_code=400, detail="Use Google/GitHub login")
-
-    if not verify_password(data.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    token = create_token(user.email)
-
-    return {"access_token": token}
-
-
-# -----------------------------
-# Deploy Endpoint
+# Deploy Endpoint (Clerk Protected)
 # -----------------------------
 @app.post("/deploy")
 async def deploy(
     data: DeployRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    user=Depends(get_current_user)   # 👈 Clerk user
 ):
 
+    clerk_user_id = user["user_id"]
+
+    # -----------------------------
+    # Check if project exists
+    # -----------------------------
     existing = db.query(models.Project).filter(
         (models.Project.container_name == data.name) |
         (models.Project.port == data.port)
@@ -196,18 +68,24 @@ async def deploy(
     if existing:
         raise HTTPException(status_code=400, detail="Project name or port already in use.")
 
+    # -----------------------------
+    # Create Project
+    # -----------------------------
     project = models.Project(
         repo_url=data.repo_url,
         container_name=data.name,
         port=data.port,
         status="PENDING",
-        user_id=current_user.id
+        user_id=clerk_user_id   # 👈 Clerk user ID
     )
 
     db.add(project)
     db.commit()
     db.refresh(project)
 
+    # -----------------------------
+    # Background Deployment
+    # -----------------------------
     background_tasks.add_task(run_deployment_task, project.id, data)
 
     return {
@@ -235,7 +113,7 @@ def deployment_status(project_id: int, db: Session = Depends(get_db)):
         "port": project.port,
         "docker_pull": f"docker pull {docker_user}/{project.container_name}:latest",
         "docker_run": f"docker run -p {project.port}:8000 {docker_user}/{project.container_name}:latest",
-        "url": f"http://localhost:{project.port}"
+        "url": f"http://{os.getenv('EC2_PUBLIC_IP', 'localhost')}/{project.container_name}/"
     }
 
 
@@ -275,14 +153,15 @@ def run_deployment_task(project_id: int, data: DeployRequest):
 
 
 # -----------------------------
-# List User Projects
+# List User Projects (Clerk)
 # -----------------------------
 @app.get("/projects")
 def list_projects(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    user=Depends(get_current_user)
 ):
+    clerk_user_id = user["user_id"]
 
     return db.query(models.Project).filter(
-        models.Project.user_id == current_user.id
+        models.Project.user_id == clerk_user_id
     ).all()
