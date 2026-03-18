@@ -1,351 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CloudOps Mini-PaaS</title>
 
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --bg: #0f172a;
-            --card-bg: rgba(30, 41, 59, .7);
-        }
+    <!-- Clerk -->
+    <script
+        async
+        crossorigin="anonymous"
+        data-clerk-publishable-key="YOUR_PUBLISHABLE_KEY"
+        src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js">
+    </script>
 
+    <style>
         body {
-            font-family: Segoe UI, Tahoma;
-            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+            font-family: Arial;
+            background: #0f172a;
             color: white;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            margin: 0;
+            height: 100vh;
         }
 
         .container {
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            padding: 40px;
-            border-radius: 20px;
-            width: 420px;
-            border: 1px solid rgba(255, 255, 255, .1);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 10px;
+            width: 400px;
         }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 25px;
-            background: linear-gradient(to right, #60a5fa, #22c55e);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .form-group {
-            margin-bottom: 15px
-        }
-
-        input {
+        input, button {
             width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #334155;
-            background: #0f172a;
-            color: white;
-        }
-
-        button {
-            width: 100%;
-            padding: 13px;
-            border-radius: 8px;
-            border: none;
-            background: linear-gradient(45deg, #3b82f6, #2563eb);
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
+            padding: 10px;
             margin-top: 10px;
         }
 
-        .oauth-btn {
-            background: #111827;
-            border: 1px solid #374151;
-            margin-top: 8px;
-        }
-
-        #deploy-ui {
-            display: none
-        }
-
-        #status-card {
-            margin-top: 20px;
-            padding: 12px;
-            border-left: 4px solid var(--primary);
-            display: none;
-        }
-
-        pre {
-            background: #020617;
-            padding: 10px;
-            border-radius: 8px;
-            overflow: auto;
-        }
+        #deploy-ui { display: none; }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
+<div class="container">
 
-        <h1>🚀 CloudOps Mini-PaaS</h1>
+    <h2>🚀 Mini PaaS</h2>
 
-        <!-- AUTH -->
-        <div id="auth-ui">
+    <!-- Clerk Auth -->
+    <div id="auth"></div>
 
-            <div class="form-group">
-                <input id="email" placeholder="Email">
-            </div>
+    <!-- Deploy UI -->
+    <div id="deploy-ui">
 
-            <div class="form-group">
-                <input id="password" type="password" placeholder="Password">
-            </div>
+        <input id="repo_url" placeholder="Repo URL">
+        <input id="name" placeholder="App Name">
+        <input id="port" type="number" placeholder="Port">
 
-            <button onclick="login()">Sign In</button>
-            <button onclick="register()">Sign Up</button>
+        <button onclick="deploy()">Deploy</button>
+        <button onclick="logout()">Logout</button>
 
-            <button class="oauth-btn" onclick="window.location='/auth/google'">
-                Continue with Google
-            </button>
-
-            <button class="oauth-btn" onclick="window.location='/auth/github'">
-                Continue with GitHub
-            </button>
-
-        </div>
-
-        <!-- DEPLOY -->
-        <div id="deploy-ui">
-
-            <form id="deployForm">
-
-                <div class="form-group">
-                    <input id="repo_url" placeholder="https://github.com/user/repo">
-                </div>
-
-                <div class="form-group">
-                    <input id="name" placeholder="Application Name">
-                </div>
-
-                <div class="form-group">
-                    <input id="port" type="number" placeholder="External Port">
-                </div>
-
-                <button type="submit">Launch Instance</button>
-
-            </form>
-
-            <button onclick="logout()" style="background:#ef4444;margin-top:15px">Logout</button>
-
-            <div id="status-card">
-                <div id="status-text">Deploying...</div>
-            </div>
-
-        </div>
+        <div id="status"></div>
 
     </div>
 
-    <script>
+</div>
 
-        /* ============================
-        HANDLE OAUTH TOKEN
-        ============================ */
+<script>
 
-        const params = new URLSearchParams(window.location.search)
-        const oauthToken = params.get("token")
+    let clerk;
 
-        if (oauthToken) {
-            localStorage.setItem("token", oauthToken)
-            window.location.href = "/"
-        }
+    window.addEventListener("load", async () => {
 
-        /* ============================
-        LOGIN STATE
-        ============================ */
+        clerk = window.Clerk;
+        await clerk.load();
 
-        const token = localStorage.getItem("token")
-
-        if (token) {
-            showDeployUI()
+        if (clerk.user) {
+            showDeploy();
         } else {
-            showAuthUI()
+            clerk.mountSignIn(document.getElementById("auth"));
         }
+    });
 
-        function showDeployUI() {
-            document.getElementById("auth-ui").style.display = "none"
-            document.getElementById("deploy-ui").style.display = "block"
+    function showDeploy() {
+        document.getElementById("auth").style.display = "none";
+        document.getElementById("deploy-ui").style.display = "block";
+    }
+
+    async function logout() {
+        await clerk.signOut();
+        location.reload();
+    }
+
+    async function deploy() {
+
+        const token = await clerk.session.getToken();
+
+        const data = {
+            repo_url: document.getElementById("repo_url").value,
+            name: document.getElementById("name").value,
+            port: parseInt(document.getElementById("port").value)
+        };
+
+        const res = await fetch("/deploy", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+            document.getElementById("status").innerText =
+                "Deployment started: " + result.project_id;
+            poll(result.project_id);
+        } else {
+            document.getElementById("status").innerText =
+                result.detail || "Error";
         }
+    }
 
-        function showAuthUI() {
-            document.getElementById("auth-ui").style.display = "block"
-            document.getElementById("deploy-ui").style.display = "none"
-        }
+    async function poll(id) {
 
-        /* ============================
-        REGISTER
-        ============================ */
+        const interval = setInterval(async () => {
 
-        async function register() {
+            const res = await fetch(`/deployment-status/${id}`);
+            const data = await res.json();
 
-            const email = document.getElementById("email").value
-            const password = document.getElementById("password").value
+            if (data.status === "RUNNING") {
+                clearInterval(interval);
 
-            const res = await fetch("/register", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password })
-            })
-
-            const data = await res.json()
-
-            alert(data.message || data.detail)
-
-        }
-
-        /* ============================
-        LOGIN
-        ============================ */
-
-        async function login() {
-
-            const email = document.getElementById("email").value
-            const password = document.getElementById("password").value
-
-            const res = await fetch("/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password })
-            })
-
-            const data = await res.json()
-
-            if (data.access_token) {
-                localStorage.setItem("token", data.access_token)
-                showDeployUI()
-            } else {
-                alert(data.detail || "Login failed")
+                document.getElementById("status").innerHTML = `
+                ✅ Running <br>
+                URL: ${data.url}
+                `;
             }
 
-        }
-
-        /* ============================
-        LOGOUT
-        ============================ */
-
-        function logout() {
-            localStorage.removeItem("token")
-            location.reload()
-        }
-
-        /* ============================
-        DEPLOY
-        ============================ */
-
-        document.getElementById("deployForm").addEventListener("submit", async function (e) {
-
-            e.preventDefault()
-
-            const statusCard = document.getElementById("status-card")
-            const statusText = document.getElementById("status-text")
-
-            statusCard.style.display = "block"
-            statusText.innerText = "Deployment started..."
-
-            const data = {
-                repo_url: document.getElementById("repo_url").value,
-                name: document.getElementById("name").value,
-                port: parseInt(document.getElementById("port").value)
+            if (data.status === "FAILED") {
+                clearInterval(interval);
+                document.getElementById("status").innerText = "❌ Failed";
             }
 
-            const res = await fetch("/deploy", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + localStorage.getItem("token")
-                },
-                body: JSON.stringify(data)
-            })
+        }, 3000);
+    }
 
-            const result = await res.json()
-
-            if (res.ok) {
-
-                statusText.innerHTML = `⏳ Deployment started<br>ID: ${result.project_id}`
-
-                pollDeployment(result.project_id)
-
-            } else {
-
-                statusText.innerHTML = `❌ ${result.detail || "Deployment failed"}`
-
-            }
-
-        })
-
-        /* ============================
-        POLL DEPLOYMENT STATUS
-        ============================ */
-
-        async function pollDeployment(id) {
-
-            const statusText = document.getElementById("status-text")
-
-            const interval = setInterval(async () => {
-
-                const res = await fetch(`/deployment-status/${id}`)
-                const data = await res.json()
-
-                if (data.status === "RUNNING") {
-
-                    clearInterval(interval)
-
-                    statusText.innerHTML = `
-✅ Deployment Completed
-
-<br><br>
-
-Pull Image
-<pre>${data.docker_pull}</pre>
-
-Run Container
-<pre>${data.docker_run}</pre>
-
-Live URL
-<pre>${data.url}</pre>
-`
-
-                }
-
-                if (data.status === "FAILED") {
-
-                    clearInterval(interval)
-
-                    statusText.innerHTML = `
-❌ Deployment Failed
-
-Error
-<pre>${data.error || "Unknown error"}</pre>
-`
-
-                }
-
-            }, 3000)
-
-        }
-
-    </script>
+</script>
 
 </body>
-
 </html>
