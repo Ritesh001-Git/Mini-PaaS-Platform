@@ -1,17 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CloudOps Mini-PaaS</title>
 
     <!-- Clerk -->
-    <script
-        async
-        crossorigin="anonymous"
+    <script async crossorigin="anonymous"
         data-clerk-publishable-key="pk_test_Y2VydGFpbi1zZWFob3JzZS0yMy5jbGVyay5hY2NvdW50cy5kZXYk"
         src="https://cdn.clerk.dev/clerk.js">
-    </script>
+        </script>
 
     <style>
         body {
@@ -31,13 +30,16 @@
             width: 400px;
         }
 
-        input, button {
+        input,
+        button {
             width: 100%;
             padding: 10px;
             margin-top: 10px;
         }
 
-        #deploy-ui { display: none; }
+        #deploy-ui {
+            display: none;
+        }
 
         #status {
             margin-top: 10px;
@@ -48,120 +50,127 @@
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-    <h2>🚀 Mini PaaS</h2>
+        <h2>🚀 Mini PaaS</h2>
 
-    <!-- Clerk Auth -->
-    <div id="auth"></div>
+        <!-- Clerk Auth -->
+        <div id="auth"></div>
 
-    <!-- Deploy UI -->
-    <div id="deploy-ui">
+        <!-- Deploy UI -->
+        <div id="deploy-ui">
 
-        <input id="repo_url" placeholder="https://github.com/user/repo">
-        <input id="name" placeholder="App Name (e.g. my-app)">
-        <input id="port" type="number" placeholder="Port (e.g. 3000)">
+            <input id="repo_url" placeholder="https://github.com/user/repo">
+            <input id="name" placeholder="App Name (e.g. my-app)">
+            <input id="port" type="number" placeholder="Port (e.g. 3000)">
 
-        <button onclick="deploy()">Deploy</button>
-        <button onclick="logout()" style="background:red">Logout</button>
+            <button onclick="deploy()">Deploy</button>
+            <button onclick="logout()" style="background:red">Logout</button>
 
-        <div id="status"></div>
+            <div id="status"></div>
+
+        </div>
 
     </div>
 
-</div>
+    <script>
 
-<script>
+        let clerk;
 
-    let clerk;
+        window.addEventListener("load", async () => {
 
-    window.addEventListener("load", async () => {
+            const clerk = window.Clerk;
 
-        clerk = window.Clerk;
-        await clerk.load();
+            if (!clerk) {
+                console.error("Clerk failed to load");
+                return;
+            }
 
-        if (clerk.user) {
-            showDeploy();
-        } else {
-            clerk.mountSignIn(document.getElementById("auth"));
-        }
-    });
+            await clerk.load();
 
-    function showDeploy() {
-        document.getElementById("auth").style.display = "none";
-        document.getElementById("deploy-ui").style.display = "block";
-    }
-
-    async function logout() {
-        await clerk.signOut();
-        location.reload();
-    }
-
-    async function deploy() {
-
-        const repo = document.getElementById("repo_url").value;
-        const name = document.getElementById("name").value;
-        const port = parseInt(document.getElementById("port").value);
-
-        if (!repo || !name || !port) {
-            alert("Please fill all fields");
-            return;
-        }
-
-        const token = await clerk.session.getToken();
-
-        const res = await fetch("/deploy", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                repo_url: repo,
-                name: name,
-                port: port
-            })
+            if (clerk.user) {
+                showDeploy();
+            } else {
+                clerk.mountSignIn(document.getElementById("auth"));
+            }
         });
 
-        const result = await res.json();
-
-        const statusDiv = document.getElementById("status");
-
-        if (res.ok) {
-            statusDiv.innerHTML = `⏳ Deployment started (ID: ${result.project_id})`;
-            poll(result.project_id);
-        } else {
-            statusDiv.innerHTML = `❌ ${result.detail || "Error"}`;
+        function showDeploy() {
+            document.getElementById("auth").style.display = "none";
+            document.getElementById("deploy-ui").style.display = "block";
         }
-    }
 
-    async function poll(id) {
+        async function logout() {
+            await clerk.signOut();
+            location.reload();
+        }
 
-        const interval = setInterval(async () => {
+        async function deploy() {
 
-            const res = await fetch(`/deployment-status/${id}`);
-            const data = await res.json();
+            const repo = document.getElementById("repo_url").value;
+            const name = document.getElementById("name").value;
+            const port = parseInt(document.getElementById("port").value);
+
+            if (!repo || !name || !port) {
+                alert("Please fill all fields");
+                return;
+            }
+
+            const token = await clerk.session.getToken();
+
+            const res = await fetch("/deploy", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    repo_url: repo,
+                    name: name,
+                    port: port
+                })
+            });
+
+            const result = await res.json();
 
             const statusDiv = document.getElementById("status");
 
-            if (data.status === "RUNNING") {
-                clearInterval(interval);
+            if (res.ok) {
+                statusDiv.innerHTML = `⏳ Deployment started (ID: ${result.project_id})`;
+                poll(result.project_id);
+            } else {
+                statusDiv.innerHTML = `❌ ${result.detail || "Error"}`;
+            }
+        }
 
-                statusDiv.innerHTML = `
+        async function poll(id) {
+
+            const interval = setInterval(async () => {
+
+                const res = await fetch(`/deployment-status/${id}`);
+                const data = await res.json();
+
+                const statusDiv = document.getElementById("status");
+
+                if (data.status === "RUNNING") {
+                    clearInterval(interval);
+
+                    statusDiv.innerHTML = `
                 ✅ Deployment Successful <br><br>
                 🌐 URL: <a href="${data.url}" target="_blank">${data.url}</a>
                 `;
-            }
+                }
 
-            if (data.status === "FAILED") {
-                clearInterval(interval);
-                statusDiv.innerHTML = "❌ Deployment Failed";
-            }
+                if (data.status === "FAILED") {
+                    clearInterval(interval);
+                    statusDiv.innerHTML = "❌ Deployment Failed";
+                }
 
-        }, 3000);
-    }
+            }, 3000);
+        }
 
-</script>
+    </script>
 
 </body>
+
 </html>
