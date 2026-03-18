@@ -102,7 +102,7 @@ def deploy_project(repo_url, container_name, port):
             detach=True,
             name=container_name,
             # ports={'8000/tcp': port},
-            network="mini-paas-platform_default"
+            network="mini-paas-platform_default",
             restart_policy={"Name": "always"}
         )
 
