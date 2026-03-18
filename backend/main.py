@@ -9,9 +9,6 @@ from database import get_db, engine, SessionLocal
 import models
 import deployer
 
-# 👇 Clerk auth
-from auth_clerk import get_current_user
-
 
 # -----------------------------
 # FastAPI App
@@ -45,17 +42,17 @@ def home(request: Request):
 
 
 # -----------------------------
-# Deploy Endpoint (Clerk Protected)
+# Deploy Endpoint (NO AUTH)
 # -----------------------------
 @app.post("/deploy")
 async def deploy(
     data: DeployRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user)   # 👈 Clerk user
+    db: Session = Depends(get_db)
 ):
 
-    clerk_user_id = user["user_id"]
+    # 👇 Temporary dummy user
+    user_id = 1
 
     # -----------------------------
     # Check if project exists
@@ -76,7 +73,7 @@ async def deploy(
         container_name=data.name,
         port=data.port,
         status="PENDING",
-        user_id=clerk_user_id   # 👈 Clerk user ID
+        user_id=user_id
     )
 
     db.add(project)
@@ -153,15 +150,8 @@ def run_deployment_task(project_id: int, data: DeployRequest):
 
 
 # -----------------------------
-# List User Projects (Clerk)
+# List Projects (NO AUTH)
 # -----------------------------
 @app.get("/projects")
-def list_projects(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user)
-):
-    clerk_user_id = user["user_id"]
-
-    return db.query(models.Project).filter(
-        models.Project.user_id == clerk_user_id
-    ).all()
+def list_projects(db: Session = Depends(get_db)):
+    return db.query(models.Project).all()
