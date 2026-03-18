@@ -9,7 +9,7 @@
     <script
         async
         crossorigin="anonymous"
-        data-clerk-publishable-key="YOUR_PUBLISHABLE_KEY"
+        data-clerk-publishable-key="pk_test_Y2VydGFpbi1zZWFob3JzZS0yMy5jbGVyay5hY2NvdW50cy5kZXYk"
         src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js">
     </script>
 
@@ -38,6 +38,11 @@
         }
 
         #deploy-ui { display: none; }
+
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -53,12 +58,12 @@
     <!-- Deploy UI -->
     <div id="deploy-ui">
 
-        <input id="repo_url" placeholder="Repo URL">
-        <input id="name" placeholder="App Name">
-        <input id="port" type="number" placeholder="Port">
+        <input id="repo_url" placeholder="https://github.com/user/repo">
+        <input id="name" placeholder="App Name (e.g. my-app)">
+        <input id="port" type="number" placeholder="Port (e.g. 3000)">
 
         <button onclick="deploy()">Deploy</button>
-        <button onclick="logout()">Logout</button>
+        <button onclick="logout()" style="background:red">Logout</button>
 
         <div id="status"></div>
 
@@ -94,13 +99,16 @@
 
     async function deploy() {
 
-        const token = await clerk.session.getToken();
+        const repo = document.getElementById("repo_url").value;
+        const name = document.getElementById("name").value;
+        const port = parseInt(document.getElementById("port").value);
 
-        const data = {
-            repo_url: document.getElementById("repo_url").value,
-            name: document.getElementById("name").value,
-            port: parseInt(document.getElementById("port").value)
-        };
+        if (!repo || !name || !port) {
+            alert("Please fill all fields");
+            return;
+        }
+
+        const token = await clerk.session.getToken();
 
         const res = await fetch("/deploy", {
             method: "POST",
@@ -108,18 +116,22 @@
                 "Authorization": `Bearer ${token}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify({
+                repo_url: repo,
+                name: name,
+                port: port
+            })
         });
 
         const result = await res.json();
 
+        const statusDiv = document.getElementById("status");
+
         if (res.ok) {
-            document.getElementById("status").innerText =
-                "Deployment started: " + result.project_id;
+            statusDiv.innerHTML = `⏳ Deployment started (ID: ${result.project_id})`;
             poll(result.project_id);
         } else {
-            document.getElementById("status").innerText =
-                result.detail || "Error";
+            statusDiv.innerHTML = `❌ ${result.detail || "Error"}`;
         }
     }
 
@@ -130,18 +142,20 @@
             const res = await fetch(`/deployment-status/${id}`);
             const data = await res.json();
 
+            const statusDiv = document.getElementById("status");
+
             if (data.status === "RUNNING") {
                 clearInterval(interval);
 
-                document.getElementById("status").innerHTML = `
-                ✅ Running <br>
-                URL: ${data.url}
+                statusDiv.innerHTML = `
+                ✅ Deployment Successful <br><br>
+                🌐 URL: <a href="${data.url}" target="_blank">${data.url}</a>
                 `;
             }
 
             if (data.status === "FAILED") {
                 clearInterval(interval);
-                document.getElementById("status").innerText = "❌ Failed";
+                statusDiv.innerHTML = "❌ Deployment Failed";
             }
 
         }, 3000);
