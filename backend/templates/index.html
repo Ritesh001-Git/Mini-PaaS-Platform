@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CloudOps Mini-PaaS</title>
-<style>
+
+    <style>
         body {
             font-family: Arial;
             background: #0f172a;
@@ -23,15 +24,10 @@
             width: 400px;
         }
 
-        input,
-        button {
+        input, button {
             width: 100%;
             padding: 10px;
             margin-top: 10px;
-        }
-
-        #deploy-ui {
-            display: none;
         }
 
         #status {
@@ -43,97 +39,87 @@
 
 <body>
 
-    <div class="container">
+<div class="container">
 
-        <h2>🚀 Mini PaaS</h2>
+    <h2>🚀 Mini PaaS</h2>
 
-        <!-- Clerk Auth -->
-        <div id="auth"></div>
+    <input id="repo_url" placeholder="https://github.com/user/repo">
+    <input id="name" placeholder="App Name (e.g. my-app)">
+    <input id="port" type="number" placeholder="Port (e.g. 3000)">
 
-        <!-- Deploy UI -->
-        <div id="deploy-ui">
+    <button onclick="deploy()">Deploy</button>
 
-            <input id="repo_url" placeholder="https://github.com/user/repo">
-            <input id="name" placeholder="App Name (e.g. my-app)">
-            <input id="port" type="number" placeholder="Port (e.g. 3000)">
+    <div id="status"></div>
 
-            <button onclick="deploy()">Deploy</button>
-            <button onclick="logout()" style="background:red">Logout</button>
+</div>
 
-            <div id="status"></div>
+<script>
 
-        </div>
+async function deploy() {
 
-    </div>
+    console.log("Deploy clicked");
 
-    <script>
-        document.getElementById("deploy-ui").style.display = "block";
-        async function deploy() {
+    const repo = document.getElementById("repo_url").value;
+    const name = document.getElementById("name").value;
+    const port = parseInt(document.getElementById("port").value);
 
-            const repo = document.getElementById("repo_url").value;
-            const name = document.getElementById("name").value;
-            const port = parseInt(document.getElementById("port").value);
+    if (!repo || !name || !port) {
+        alert("Please fill all fields");
+        return;
+    }
 
-            if (!repo || !name || !port) {
-                alert("Please fill all fields");
-                return;
-            }
+    try {
+        const res = await fetch("/deploy", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ repo_url: repo, name, port })
+        });
 
-            const token = await clerk.session.getToken();
+        const result = await res.json();
 
-            const res = await fetch("/deploy", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    repo_url: repo,
-                    name: name,
-                    port: port
-                })
-            });
+        const statusDiv = document.getElementById("status");
 
-            const result = await res.json();
-
-            const statusDiv = document.getElementById("status");
-
-            if (res.ok) {
-                statusDiv.innerHTML = `⏳ Deployment started (ID: ${result.project_id})`;
-                poll(result.project_id);
-            } else {
-                statusDiv.innerHTML = `❌ ${result.detail || "Error"}`;
-            }
+        if (res.ok) {
+            statusDiv.innerHTML = `⏳ Deployment started (ID: ${result.project_id})`;
+            poll(result.project_id);
+        } else {
+            statusDiv.innerHTML = `❌ ${result.detail || "Error"}`;
         }
 
-        async function poll(id) {
+    } catch (err) {
+        console.error(err);
+    }
+}
 
-            const interval = setInterval(async () => {
+async function poll(id) {
 
-                const res = await fetch(`/deployment-status/${id}`);
-                const data = await res.json();
+    const interval = setInterval(async () => {
 
-                const statusDiv = document.getElementById("status");
+        const res = await fetch(`/deployment-status/${id}`);
+        const data = await res.json();
 
-                if (data.status === "RUNNING") {
-                    clearInterval(interval);
+        const statusDiv = document.getElementById("status");
 
-                    statusDiv.innerHTML = `
-                ✅ Deployment Successful <br><br>
-                🌐 URL: <a href="${data.url}" target="_blank">${data.url}</a>
-                `;
-                }
+        if (data.status === "RUNNING") {
+            clearInterval(interval);
 
-                if (data.status === "FAILED") {
-                    clearInterval(interval);
-                    statusDiv.innerHTML = "❌ Deployment Failed";
-                }
-
-            }, 3000);
+            statusDiv.innerHTML = `
+            ✅ Deployment Successful <br><br>
+            🌐 URL: <a href="${data.url}" target="_blank">${data.url}</a>
+            `;
         }
 
-    </script>
+        if (data.status === "FAILED") {
+            clearInterval(interval);
+            statusDiv.innerHTML = "❌ Deployment Failed";
+        }
+
+    }, 3000);
+}
+
+</script>
 
 </body>
-
 </html>
