@@ -4,7 +4,7 @@ A lightweight **Platform-as-a-Service (PaaS)** built with **Python, Docker, Ngin
 
 The platform clones a repository, builds a Docker image, deploys the container, configures Nginx reverse proxy, and tracks deployments in a database.
 
-This project demonstrates **real-world DevOps practices** such as container orchestration, infrastructure automation, reverse proxy management, and deployment pipelines.
+This project demonstrates real-world DevOps practices such as container orchestration, infrastructure automation, reverse proxy management, deployment pipelines, and backend API development using Python with FastAPI.
 
 ---
 
